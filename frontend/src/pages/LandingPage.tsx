@@ -18,6 +18,7 @@ import { useNavigate } from "react-router-dom";
 import { Badge, Button, Swatch } from "@/components/ui";
 import { BeforeAfter } from "@/components/BeforeAfter";
 import { MarketingFooter, MarketingNav } from "@/components/marketing/MarketingNav";
+import { API_BASE } from "@/api/client";
 import { EarthScene } from "@/components/scene/EarthScene";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { CHANGE_CLASSES } from "@/lib/classes";
@@ -439,8 +440,8 @@ export default function LandingPage() {
             </ul>
             <div className="mt-6 rounded-xl border border-line bg-bg-deep/60 p-4 font-mono text-[10.5px] leading-relaxed text-muted">
               <p className="text-primary/80">$ senseearth serve</p>
-              <p className="mt-1.5">API · http://localhost:8000</p>
-              <p>WEB · http://localhost:5173</p>
+              <p className="mt-1.5">API · {API_BASE}</p>
+              <p>WEB · {window.location.origin}</p>
               <p className="mt-1.5 text-muted/70">checkpoint · models/weights/pspnet_hrnet_w18.pth</p>
             </div>
           </motion.div>

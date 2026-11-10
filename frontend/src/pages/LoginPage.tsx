@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Lock, Mail, Sparkles, UserRound } from "lucide-react";
 import { useState, type FormEvent } from "react";
@@ -23,13 +22,7 @@ export default function LoginPage() {
   const [name, setName] = useState("");
   const [organization, setOrganization] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"form" | "demo" | "google" | null>(null);
-  const google = useQuery({
-    queryKey: ["google-auth-status"],
-    queryFn: api.googleStatus,
-    staleTime: 60_000,
-    retry: false,
-  });
+  const [busy, setBusy] = useState<"form" | "demo" | null>(null);
 
   const redirectTo = (location.state as { from?: string } | null)?.from ?? "/app";
 
@@ -68,22 +61,6 @@ export default function LoginPage() {
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : "Could not start the demo session.");
     } finally {
-      setBusy(null);
-    }
-  };
-
-  const startGoogle = async () => {
-    setError(null);
-    setBusy("google");
-    try {
-      const { authorizeUrl } = await api.googleStart();
-      window.location.assign(authorizeUrl);
-    } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.message
-          : "Google sign-in could not start. Check that the backend is running.",
-      );
       setBusy(null);
     }
   };
@@ -178,8 +155,8 @@ export default function LoginPage() {
           </h2>
           <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted">
             {mode === "signin"
-              ? "Credentials are stored locally in SQLite with PBKDF2-SHA256 hashes."
-              : "Passwords are hashed before storage. No email is sent by this build."}
+              ? "Sign in with your SenseEarth account."
+              : "Create an account. Passwords are hashed with PBKDF2-SHA256 before storage."}
           </p>
 
           <form onSubmit={submit} className="mt-6 space-y-4">
@@ -253,35 +230,6 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <span className="h-px flex-1 bg-line" />
-            <span className="font-mono text-[9.5px] uppercase tracking-[0.2em] text-muted">or</span>
-            <span className="h-px flex-1 bg-line" />
-          </div>
-
-          <button
-            type="button"
-            onClick={startGoogle}
-            disabled={busy !== null || google.isLoading || google.data?.enabled === false}
-            className="flex w-full items-center justify-center gap-2.5 rounded-full border border-line bg-ivory/[0.04] px-4 py-3 text-[12.5px] font-medium text-ink transition-colors hover:bg-ivory/[0.08] disabled:cursor-not-allowed disabled:opacity-55"
-          >
-            {busy === "google" ? (
-              <span className="size-4 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
-            ) : (
-              <svg viewBox="0 0 24 24" className="size-4" aria-hidden="true">
-                <path fill="#EA4335" d="M12 10.2v3.9h5.5c-.24 1.4-1.7 4.2-5.5 4.2A6.3 6.3 0 0 1 12 5.6c1.9 0 3.1.8 3.8 1.5l2.6-2.5A9.5 9.5 0 0 0 12 2a10 10 0 1 0 0 20c5.8 0 9.6-4.1 9.6-9.8 0-.7-.1-1.2-.2-2H12Z" />
-              </svg>
-            )}
-            Continue with Google
-          </button>
-          {google.data?.enabled === false && (
-            <p className="mt-2 text-center text-[10.5px] leading-relaxed text-muted/80">
-              Google sign-in is wired up but switched off until this backend has a Google OAuth client.
-              {google.data.missing.length > 0 && (
-                <> Missing: <span className="font-mono text-[10px]">{google.data.missing.join(", ")}</span>.</>
-              )}
-            </p>
-          )}
 
           <Button
             variant="secondary"

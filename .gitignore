@@ -24,3 +24,6 @@ storage/
 
 # Build / logs
 *.log
+
+# Local tooling
+/tools/

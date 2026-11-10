@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api, ApiError } from "@/api/client";
+import { api, ApiError, API_BASE } from "@/api/client";
 import {
   Badge,
   Button,
@@ -317,8 +317,8 @@ export default function SettingsPage() {
             </Button>
           </div>
           <div className="rounded-lg border border-line bg-bg-deep/50 p-3 font-mono text-[10px] leading-relaxed text-muted">
-            <p>API · http://localhost:8000/api</p>
-            <p>WEB · http://localhost:5173</p>
+            <p>API · {API_BASE}</p>
+            <p>WEB · {window.location.origin}</p>
             <p>DB · storage/senseearth.db</p>
             <p>WEIGHTS · models/weights/pspnet_hrnet_w18.pth</p>
           </div>
