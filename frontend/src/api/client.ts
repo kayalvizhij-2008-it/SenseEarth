@@ -280,16 +280,6 @@ export const api = {
       `senseearth-${id.slice(0, 8)}.${format === "zip" ? "zip" : format}`,
     ),
 
-  // ---- google oauth ----
-  googleStatus: () =>
-    request<{
-      enabled: boolean;
-      redirectUri: string;
-      frontendUrl: string;
-      missing: string[];
-    }>("/auth/google/status"),
-  googleStart: () => request<{ authorizeUrl: string; state: string }>("/auth/google/start"),
-
   // ---- analytics ----
   summary: () => request<AnalyticsSummary>("/analytics/summary"),
   classDistribution: () => request<ClassDistribution>("/analytics/class-distribution"),

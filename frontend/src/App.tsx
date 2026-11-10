@@ -1,7 +1,6 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "@/layouts/AppShell";
-import AuthCallbackPage from "@/pages/AuthCallbackPage";
 import DashboardPage from "@/pages/DashboardPage";
 import HomePage from "@/pages/HomePage";
 import ExplorePage from "@/pages/ExplorePage";
@@ -36,8 +35,6 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/auth/callback" element={<AuthCallbackPage />} />
-
       <Route element={<RequireAuth />}>
         <Route path="/app" element={<AppShell />}>
           <Route index element={<HomePage />} />

@@ -73,14 +73,17 @@ class Settings:
 
     # Security --------------------------------------------------------------
     SESSION_TTL_SECONDS: int = _env_int("SENSEEARTH_SESSION_TTL", 7 * 24 * 3600)
-    CORS_ORIGINS: list[str] = [
+    CORS_ORIGINS: list[str] = list(dict.fromkeys([
         origin.strip()
         for origin in os.environ.get(
             "SENSEEARTH_CORS_ORIGINS",
             "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173",
         ).split(",")
         if origin.strip()
-    ]
+    ] + [
+        "https://site-da783295f19548d69bbd52b5ba2e00d1.freebuff.page",
+        "https://senseearth.vercel.app",
+    ]))
 
     # Google OAuth ----------------------------------------------------------
     # Set these in the environment (see .env.example and docs/GOOGLE_OAUTH.md).

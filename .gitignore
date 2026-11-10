@@ -27,3 +27,6 @@ storage/
 
 # Local tooling
 /tools/
+
+# Vercel
+.vercel/
