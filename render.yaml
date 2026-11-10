@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: senseearth-api
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: SENSEEARTH_CORS_ORIGINS
+        value: https://site-da783295f19548d69bbd52b5ba2e00d1.freebuff.page,https://site-f4513674f0234239b2b858a17b213331.freebuff.page
+      - key: SENSEEARTH_FRONTEND_URL
+        value: https://site-da783295f19548d69bbd52b5ba2e00d1.freebuff.page
+      - key: SENSEEARTH_GOOGLE_REDIRECT_URI
+        value: https://senseearth-api.onrender.com/api/auth/google/callback
+      - key: SENSEEARTH_DEVICE
+        value: cpu
+      - key: SENSEEARTH_PRELOAD
+        value: "1"

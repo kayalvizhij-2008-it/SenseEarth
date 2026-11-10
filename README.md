@@ -104,3 +104,34 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --backbone hrnet_w18 --pretrained -
 CUDA_VISIBLE_DEVICES=0,1,2,3 python test.py
 ```
 
+
+---
+
+## Web workspace (Obsidian · Warm Ivory · Acid Lime)
+
+The research pipeline is unchanged; the product layer wraps it in a React + FastAPI workspace.
+
+**Run locally**
+
+```bash
+# backend (real PyTorch inference, port 8000)
+python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
+
+# frontend (Vite, port 5173)
+cd frontend && npm install && npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+**Routes** — `/` marketing, `/login`, `/auth/callback` (OAuth return), `/app` (home), `/app/explore`,
+`/app/new`, `/app/dashboard`, `/app/results/:id`, `/app/monitoring`, `/app/reports`, `/app/insights`,
+`/app/settings`.
+
+**Map** — Leaflet with keyless NASA GIBS MODIS Terra true colour (public domain) and CARTO dark
+tiles (© OpenStreetMap contributors © CARTO). Nothing private is bundled; both providers are
+attributed in the map corner.
+
+**Configuration** — copy `.env.example` to `.env`. Google sign-in is documented step by step in
+[`docs/GOOGLE_OAUTH.md`](docs/GOOGLE_OAUTH.md); it stays disabled until a real Google OAuth client
+ID and secret are set. The frontend reads `VITE_API_BASE_URL` (`frontend/.env`).
+
+**Model colours are data** — the seven semantic class RGB values from the trained checkpoint are
+used for masks and legends only; the interface palette never changes them.
