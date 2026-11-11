@@ -20,7 +20,8 @@ ANALYSIS_COLUMNS = (
 )
 
 REGION_COLUMNS = (
-    "id, owner_id, name, description, geometry, bbox, area_km2, center_lat, center_lon, created_at"
+    "id, owner_id, name, description, geometry, bbox, area_km2, center_lat, center_lon, "
+    "monitoring_status, last_checked_at, created_at, updated_at"
 )
 
 USER_COLUMNS = (
@@ -342,9 +343,9 @@ def mark_interrupted(connection: sqlite3.Connection, message: str) -> int:
 def create_region(connection: sqlite3.Connection, data: Mapping[str, Any]) -> dict:
     connection.execute(
         "INSERT INTO saved_regions (id, owner_id, name, description, geometry, bbox, area_km2, "
-        "center_lat, center_lon, created_at) "
+        "center_lat, center_lon, monitoring_status, created_at, updated_at) "
         "VALUES (:id, :owner_id, :name, :description, :geometry, :bbox, :area_km2, :center_lat, "
-        ":center_lon, :created_at)",
+        ":center_lon, :monitoring_status, :created_at, :updated_at)",
         {
             "id": data["id"],
             "owner_id": data["owner_id"],
@@ -355,11 +356,45 @@ def create_region(connection: sqlite3.Connection, data: Mapping[str, Any]) -> di
             "area_km2": data.get("area_km2"),
             "center_lat": data.get("center_lat"),
             "center_lon": data.get("center_lon"),
+            "monitoring_status": data.get("monitoring_status") or "active",
             "created_at": data.get("created_at") or now_iso(),
+            "updated_at": data.get("updated_at") or now_iso(),
         },
     )
     connection.commit()
     return get_region(connection, data["id"])  # type: ignore[return-value]
+
+
+def update_region(connection: sqlite3.Connection, region_id: str, **fields: Any) -> dict | None:
+    allowed = {
+        "name",
+        "description",
+        "geometry",
+        "bbox",
+        "area_km2",
+        "center_lat",
+        "center_lon",
+        "monitoring_status",
+        "last_checked_at",
+    }
+    filtered = {key: value for key, value in fields.items() if key in allowed}
+    if not filtered:
+        return get_region(connection, region_id)
+    filtered["updated_at"] = now_iso()
+    assignments = ", ".join(f"{key} = :{key}" for key in filtered)
+    filtered["region_id"] = region_id
+    connection.execute(
+        f"UPDATE saved_regions SET {assignments} WHERE id = :region_id", filtered
+    )
+    connection.commit()
+    return get_region(connection, region_id)
+
+
+def mark_region_checked(connection: sqlite3.Connection, region_id: str) -> None:
+    connection.execute(
+        "UPDATE saved_regions SET last_checked_at = ? WHERE id = ?", (now_iso(), region_id)
+    )
+    connection.commit()
 
 
 def get_region(connection: sqlite3.Connection, region_id: str) -> dict | None:
@@ -443,5 +478,7 @@ __all__ = [
     "now_iso",
     "recent_analyses",
     "status_counts",
+    "mark_region_checked",
     "update_analysis",
+    "update_region",
 ]

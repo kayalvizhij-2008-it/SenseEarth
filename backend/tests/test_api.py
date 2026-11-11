@@ -246,7 +246,17 @@ def test_region_crud(client: TestClient, auth: dict) -> None:
 
     listing = client.get("/api/regions", headers=auth)
     assert listing.status_code == 200
-    assert any(item["id"] == region_id for item in listing.json()["items"])
+    saved = next(item for item in listing.json()["items"] if item["id"] == region_id)
+    assert saved["monitoringStatus"] == "active"
+
+    updated = client.patch(
+        f"/api/regions/{region_id}",
+        headers=auth,
+        json={"name": "Renamed AOI", "monitoringStatus": "paused"},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["name"] == "Renamed AOI"
+    assert updated.json()["monitoringStatus"] == "paused"
 
     rejected = client.post(
         "/api/regions",

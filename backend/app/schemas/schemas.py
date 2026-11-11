@@ -123,6 +123,16 @@ class RegionCreate(BaseModel):
     center: list[float] | None = None
 
 
+class RegionUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=1000)
+    geometry: dict[str, Any] | None = None
+    bbox: list[float] | None = None
+    areaKm2: float | None = Field(default=None, ge=0)
+    center: list[float] | None = None
+    monitoringStatus: Literal["active", "paused"] | None = None
+
+
 class RegionOut(BaseModel):
     id: str
     name: str
@@ -131,7 +141,10 @@ class RegionOut(BaseModel):
     bbox: list[float] | None = None
     areaKm2: float | None = None
     center: list[float] | None = None
+    monitoringStatus: str = "active"
+    lastCheckedAt: str | None = None
     createdAt: str | None = None
+    updatedAt: str | None = None
     analysisCount: int = 0
     latestAnalysis: dict[str, Any] | None = None
 
@@ -183,6 +196,7 @@ __all__ = [
     "LoginRequest",
     "RegionCreate",
     "RegionOut",
+    "RegionUpdate",
     "RegisterRequest",
     "UserOut",
 ]

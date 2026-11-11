@@ -1,4 +1,4 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import {
   Activity,
@@ -8,6 +8,7 @@ import {
   ImageOff,
   Layers,
   MapPin,
+  Plus,
   RefreshCw,
   ScanLine,
 } from "lucide-react";
@@ -22,11 +23,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { mediaUrl } from "@/api/client";
-import type { Analysis } from "@/api/types";
+import { api, mediaUrl } from "@/api/client";
+import type { Analysis, Region } from "@/api/types";
 import {
   Badge,
   Button,
+  ConfirmDialog,
   EmptyState,
   ErrorState,
   LoadingBlock,
@@ -37,6 +39,8 @@ import {
   Stat,
   StatusBadge,
 } from "@/components/ui";
+import { RegionCard } from "@/components/regions/RegionCard";
+import { RegionEditorModal } from "@/components/regions/RegionEditorModal";
 import { CosmicOrb } from "@/components/visuals/CosmicOrb";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import {
@@ -45,10 +49,13 @@ import {
   useHistory,
   useModelStatus,
   useRecentAnalyses,
+  useRegions,
   useSummary,
 } from "@/hooks/useSystem";
 import { formatArea, formatCompact, formatPercent, relativeTime } from "@/lib/format";
+import { CHENNAI_STARTER_REGIONS, starterRegionPayload } from "@/lib/starterRegions";
 import { useAuthStore } from "@/store/auth";
+import { toast } from "@/store/ui";
 
 function ChartTooltip({
   active,
@@ -117,7 +124,51 @@ export default function DashboardPage() {
   useDocumentTitle("Dashboard");
   const user = useAuthStore((state) => state.user);
   const [days, setDays] = useState<"14" | "30" | "90">("30");
+  const [editingRegion, setEditingRegion] = useState<Region | null>(null);
+  const [removingRegion, setRemovingRegion] = useState<Region | null>(null);
   const queryClient = useQueryClient();
+
+  const regions = useRegions();
+  const refreshRegions = () => {
+    void queryClient.invalidateQueries({ queryKey: ["regions"] });
+    void queryClient.invalidateQueries({ queryKey: ["region-activity"] });
+    void queryClient.invalidateQueries({ queryKey: ["summary"] });
+  };
+  const starterMutation = useMutation({
+    mutationFn: async () => {
+      const existing = new Set(
+        (regions.data?.items ?? []).map((region) => region.name.toLowerCase()),
+      );
+      for (const starter of CHENNAI_STARTER_REGIONS) {
+        if (existing.has(starter.name.toLowerCase())) continue;
+        await api.createRegion(starterRegionPayload(starter));
+      }
+    },
+    onSuccess: () => {
+      toast("success", "Chennai starter regions added", "Edit or redraw their boundaries under Monitoring.");
+      refreshRegions();
+    },
+    onError: (error) => toast("error", "Could not add starter regions", String(error)),
+  });
+  const updateRegion = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof api.updateRegion>[1] }) =>
+      api.updateRegion(id, payload),
+    onSuccess: () => {
+      setEditingRegion(null);
+      refreshRegions();
+      toast("success", "Region updated");
+    },
+    onError: (error) => toast("error", "Could not update the region", String(error)),
+  });
+  const removeRegion = useMutation({
+    mutationFn: (id: string) => api.removeRegion(id),
+    onSuccess: () => {
+      setRemovingRegion(null);
+      refreshRegions();
+      toast("success", "Region removed", "Stored analyses were kept.");
+    },
+    onError: (error) => toast("error", "Could not remove the region", String(error)),
+  });
 
   const summary = useSummary();
   const history = useHistory(Number(days));
@@ -207,6 +258,77 @@ export default function DashboardPage() {
           loading={summary.isLoading}
         />
       </div>
+
+      <Panel>
+        <PanelHeader
+          title="Saved regions"
+          description="Your watchlist boundaries, stored by the API and shared with Monitoring."
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              {(regions.data?.items.length ?? 0) === 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  loading={starterMutation.isPending}
+                  onClick={() => starterMutation.mutate()}
+                >
+                  Add Chennai examples
+                </Button>
+              )}
+              <Button to="/app/explore" variant="secondary" size="sm" icon={<Plus className="size-3.5" />}>
+                Save region
+              </Button>
+            </div>
+          }
+        />
+        <div className="mt-4">
+          {regions.isLoading ? (
+            <LoadingBlock rows={2} />
+          ) : (regions.data?.items.length ?? 0) === 0 ? (
+            <EmptyState
+              icon={<MapPin className="size-5" />}
+              title="No saved regions yet"
+              description="Draw a boundary on Explore Earth, or load four clearly labelled Chennai starter examples you can edit or remove."
+              action={
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button to="/app/explore" variant="primary" size="sm" icon={<Plus className="size-3.5" />}>
+                    Save a region
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    loading={starterMutation.isPending}
+                    onClick={() => starterMutation.mutate()}
+                  >
+                    Add Chennai examples
+                  </Button>
+                </div>
+              }
+              className="mt-2"
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {regions.data?.items.map((region) => (
+                <RegionCard
+                  key={region.id}
+                  region={region}
+                  onEdit={setEditingRegion}
+                  onRemove={setRemovingRegion}
+                  onToggleMonitoring={(target) =>
+                    updateRegion.mutate({
+                      id: target.id,
+                      payload: {
+                        monitoringStatus:
+                          target.monitoringStatus === "paused" ? "active" : "paused",
+                      },
+                    })
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </Panel>
 
       <div className="grid gap-4 xl:grid-cols-[1.55fr_1fr]">
         <Panel className="flex flex-col">
@@ -409,6 +531,32 @@ export default function DashboardPage() {
           </Button>
         </Panel>
       </div>
+
+      <RegionEditorModal
+        region={editingRegion}
+        open={Boolean(editingRegion)}
+        saving={updateRegion.isPending}
+        onClose={() => setEditingRegion(null)}
+        onSave={(payload) => {
+          if (!editingRegion) return;
+          updateRegion.mutate({ id: editingRegion.id, payload });
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(removingRegion)}
+        title="Remove this saved region?"
+        description={
+          removingRegion
+            ? `${removingRegion.name} will leave the dashboard and watchlist. Stored analyses are kept but lose their region association.`
+            : undefined
+        }
+        confirmLabel="Remove region"
+        loading={removeRegion.isPending}
+        onClose={() => setRemovingRegion(null)}
+        onConfirm={() => {
+          if (removingRegion) removeRegion.mutate(removingRegion.id);
+        }}
+      />
     </div>
   );
 }

@@ -13,6 +13,7 @@ from backend.app.core.security import (
     hash_password,
     is_valid_email,
     normalize_email,
+    password_needs_rehash,
     verify_password,
 )
 from backend.app.database.db import DEMO_EMAIL, DEMO_PASSWORD
@@ -29,6 +30,17 @@ def _auth_payload(user: dict) -> dict:
         "user": user_to_dict(user),
         "expiresIn": settings.SESSION_TTL_SECONDS,
     }
+
+
+def _rehash_if_needed(connection: sqlite3.Connection, user: dict, password: str) -> None:
+    """Upgrade an old-but-valid hash after a successful sign-in."""
+    if not password_needs_rehash(user["password_hash"]):
+        return
+    connection.execute(
+        "UPDATE users SET password_hash = ? WHERE id = ?",
+        (hash_password(password), user["id"]),
+    )
+    connection.commit()
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -58,6 +70,7 @@ def login(payload: LoginRequest, connection: sqlite3.Connection = Depends(db_ses
     user = get_user_by_email(connection, normalize_email(payload.email))
     if user is None or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Incorrect email or password.")
+    _rehash_if_needed(connection, user, payload.password)
     return _auth_payload(user)
 
 
@@ -67,6 +80,7 @@ def demo_login(connection: sqlite3.Connection = Depends(db_session)) -> dict:
     user = get_user_by_email(connection, DEMO_EMAIL)
     if user is None or not verify_password(DEMO_PASSWORD, user["password_hash"]):
         raise HTTPException(status_code=503, detail="Demo workspace is not available.")
+    _rehash_if_needed(connection, user, DEMO_PASSWORD)
     return _auth_payload(user)
 
 

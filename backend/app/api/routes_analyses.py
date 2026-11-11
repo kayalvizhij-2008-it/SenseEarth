@@ -27,6 +27,7 @@ from backend.app.database.store import (
     get_region,
     insert_analysis,
     list_analyses,
+    mark_region_checked,
     new_id,
     now_iso,
     update_analysis,
@@ -206,6 +207,8 @@ async def create_analysis(
         },
     )
 
+    if regionId:
+        mark_region_checked(connection, regionId)
     submit_analysis(analysis_id)
     return analysis_to_dict(record)
 

@@ -309,6 +309,18 @@ export const api = {
     areaKm2?: number;
     center?: [number, number];
   }) => request<Region>("/regions", { method: "POST", body: payload }),
+  updateRegion: (
+    id: string,
+    payload: {
+      name?: string;
+      description?: string | null;
+      geometry?: Record<string, unknown>;
+      bbox?: [number, number, number, number];
+      areaKm2?: number;
+      center?: [number, number];
+      monitoringStatus?: "active" | "paused";
+    },
+  ) => request<Region>(`/regions/${id}`, { method: "PATCH", body: payload }),
   removeRegion: (id: string) => request<void>(`/regions/${id}`, { method: "DELETE" }),
 };
 

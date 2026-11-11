@@ -18,7 +18,7 @@ from typing import Any
 
 from backend.app.core.config import settings
 
-_PBKDF2_ITERATIONS = 240_000
+_PBKDF2_ITERATIONS = 120_000
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 
 
@@ -48,6 +48,15 @@ def verify_password(password: str, stored: str) -> bool:
         return hmac.compare_digest(candidate, expected)
     except (ValueError, TypeError):
         return False
+
+
+def password_needs_rehash(stored: str) -> bool:
+    """True when a stored hash uses an older iteration count than this build."""
+    try:
+        algorithm, iterations, _salt, _digest = stored.split("$")
+        return algorithm != "pbkdf2_sha256" or int(iterations) != _PBKDF2_ITERATIONS
+    except (ValueError, TypeError):
+        return True
 
 
 def normalize_email(email: str) -> str:

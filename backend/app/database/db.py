@@ -33,16 +33,19 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS saved_regions (
-    id          TEXT PRIMARY KEY,
-    owner_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name        TEXT NOT NULL,
-    description TEXT,
-    geometry    TEXT NOT NULL,
-    bbox        TEXT,
-    area_km2    REAL,
-    center_lat  REAL,
-    center_lon  REAL,
-    created_at  TEXT NOT NULL
+    id               TEXT PRIMARY KEY,
+    owner_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name             TEXT NOT NULL,
+    description      TEXT,
+    geometry         TEXT NOT NULL,
+    bbox             TEXT,
+    area_km2         REAL,
+    center_lat       REAL,
+    center_lon       REAL,
+    monitoring_status TEXT NOT NULL DEFAULT 'active',
+    last_checked_at  TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT
 );
 
 CREATE TABLE IF NOT EXISTS oauth_states (
@@ -140,10 +143,26 @@ def _migrate_user_columns(connection: sqlite3.Connection) -> None:
         connection.execute("ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'password'")
 
 
+def _migrate_region_columns(connection: sqlite3.Connection) -> None:
+    """Older databases predate monitoring fields on saved regions."""
+    existing = {
+        row["name"] for row in connection.execute("PRAGMA table_info(saved_regions)").fetchall()
+    }
+    if "monitoring_status" not in existing:
+        connection.execute(
+            "ALTER TABLE saved_regions ADD COLUMN monitoring_status TEXT NOT NULL DEFAULT 'active'"
+        )
+    if "last_checked_at" not in existing:
+        connection.execute("ALTER TABLE saved_regions ADD COLUMN last_checked_at TEXT")
+    if "updated_at" not in existing:
+        connection.execute("ALTER TABLE saved_regions ADD COLUMN updated_at TEXT")
+
+
 def init_db() -> None:
     with connect() as connection:
         connection.executescript(SCHEMA)
         _migrate_user_columns(connection)
+        _migrate_region_columns(connection)
         connection.commit()
     seed_demo_user()
     logger.info("Database ready at %s", _database_path())

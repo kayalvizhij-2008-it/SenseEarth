@@ -64,7 +64,10 @@ def region_to_dict(region: dict, analysis_count: int = 0, latest: dict | None = 
         "bbox": json.loads(region["bbox"]) if region.get("bbox") else None,
         "areaKm2": region.get("area_km2"),
         "center": center,
+        "monitoringStatus": region.get("monitoring_status") or "active",
+        "lastCheckedAt": region.get("last_checked_at"),
         "createdAt": region.get("created_at"),
+        "updatedAt": region.get("updated_at"),
         "analysisCount": analysis_count,
         "latestAnalysis": (
             {

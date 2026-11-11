@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import clsx from "clsx";
 import {
   Activity,
@@ -8,12 +8,17 @@ import {
   Droplets,
   Info,
   MapPin,
+  Pause,
+  Pencil,
+  Play,
   Plus,
   Radar,
   Sprout,
   TreePine,
+  Trash2,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   CartesianGrid,
   Line,
@@ -24,13 +29,19 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "@/api/client";
+import type { Region } from "@/api/types";
+import { MiniMap } from "@/components/maps/MiniMap";
+import { RegionEditorModal } from "@/components/regions/RegionEditorModal";
+import { regionRing } from "@/components/regions/RegionCard";
 import {
   Badge,
   Button,
+  ConfirmDialog,
   EmptyState,
   PageHeader,
   Panel,
   PanelHeader,
+  Segmented,
   Stat,
   StatusBadge,
 } from "@/components/ui";
@@ -39,6 +50,8 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useRegionActivity } from "@/hooks/useSystem";
 import { formatArea, formatNumber, formatPercent, relativeTime } from "@/lib/format";
 import { formatCoords } from "@/lib/geo";
+import { CHENNAI_STARTER_REGIONS, starterRegionPayload } from "@/lib/starterRegions";
+import { toast } from "@/store/ui";
 
 const GROUP_ICONS: Record<string, typeof Droplets> = {
   water: Droplets,
@@ -56,16 +69,71 @@ const GROUP_COLORS: Record<string, string> = {
   sports: "#F472B6",
 };
 
+type RegionFilter = "all" | "active" | "paused";
+
 export default function MonitoringPage() {
   useDocumentTitle("Environmental monitoring");
   const activity = useRegionActivity();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const [selectedId, setSelectedId] = useState<string | null>(
+    searchParams.get("region"),
+  );
+  const [filter, setFilter] = useState<RegionFilter>("all");
+  const [editingRegion, setEditingRegion] = useState<Region | null>(null);
+  const [removingRegion, setRemovingRegion] = useState<Region | null>(null);
 
   const regions = useMemo(() => activity.data?.regions ?? [], [activity.data]);
-  const selected = useMemo(
-    () => regions.find((region) => region.id === selectedId) ?? regions[0] ?? null,
-    [regions, selectedId],
+  const filteredRegions = useMemo(
+    () =>
+      filter === "all"
+        ? regions
+        : regions.filter((region) => (region.monitoringStatus ?? "active") === filter),
+    [regions, filter],
   );
+  const selected = useMemo(
+    () => filteredRegions.find((region) => region.id === selectedId) ?? filteredRegions[0] ?? null,
+    [filteredRegions, selectedId],
+  );
+
+  const refreshRegions = () => {
+    void queryClient.invalidateQueries({ queryKey: ["regions"] });
+    void queryClient.invalidateQueries({ queryKey: ["region-activity"] });
+  };
+  const updateRegion = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof api.updateRegion>[1] }) =>
+      api.updateRegion(id, payload),
+    onSuccess: () => {
+      setEditingRegion(null);
+      refreshRegions();
+      toast("success", "Region updated");
+    },
+    onError: (error) => toast("error", "Could not update the region", String(error)),
+  });
+  const removeRegion = useMutation({
+    mutationFn: (id: string) => api.removeRegion(id),
+    onSuccess: () => {
+      setRemovingRegion(null);
+      setSelectedId(null);
+      refreshRegions();
+      toast("success", "Region removed", "Stored analyses were kept.");
+    },
+    onError: (error) => toast("error", "Could not remove the region", String(error)),
+  });
+  const starterMutation = useMutation({
+    mutationFn: async () => {
+      const existing = new Set(regions.map((region) => region.name.toLowerCase()));
+      for (const starter of CHENNAI_STARTER_REGIONS) {
+        if (existing.has(starter.name.toLowerCase())) continue;
+        await api.createRegion(starterRegionPayload(starter));
+      }
+    },
+    onSuccess: () => {
+      toast("success", "Chennai starter regions added", "Edit or redraw their boundaries before monitoring.");
+      refreshRegions();
+    },
+    onError: (error) => toast("error", "Could not add starter regions", String(error)),
+  });
 
   const completedChanges = useMemo(
     () => (selected?.changes ?? []).filter((change) => change.status === "completed").map((change) => change.id),
@@ -135,6 +203,21 @@ export default function MonitoringPage() {
         </span>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Segmented
+          value={filter}
+          onChange={(value) => setFilter(value as RegionFilter)}
+          items={[
+            { value: "all", label: "All" },
+            { value: "active", label: "Active" },
+            { value: "paused", label: "Paused" },
+          ]}
+        />
+        <span className="text-[11px] text-muted">
+          {filteredRegions.length} of {regions.length} regions
+        </span>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Monitored regions" value={regions.length} icon={<MapPin className="size-4" />} tone="primary" hint="Saved from the map" />
         <Stat label="Runs in regions" value={totalMonitoredRuns} icon={<Activity className="size-4" />} hint="Across all watchlist regions" />
@@ -164,8 +247,31 @@ export default function MonitoringPage() {
             title="No regions under watch"
             description="Save an area of interest from Explore Earth. Analyses that reference it will collect here with their change history."
             action={
+              <div className="flex flex-wrap justify-center gap-2">
+                <Button to="/app/explore" variant="primary" size="sm" icon={<MapPin className="size-3.5" />}>
+                  Open Explore Earth
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={starterMutation.isPending}
+                  onClick={() => starterMutation.mutate()}
+                >
+                  Add Chennai examples
+                </Button>
+              </div>
+            }
+          />
+        </Panel>
+      ) : filteredRegions.length === 0 ? (
+        <Panel>
+          <EmptyState
+            icon={<Radar className="size-5" />}
+            title={`No ${filter} regions`}
+            description="Change the filter, or save another area to monitor."
+            action={
               <Button to="/app/explore" variant="primary" size="sm" icon={<MapPin className="size-3.5" />}>
-                Open Explore Earth
+                Save a region
               </Button>
             }
           />
@@ -173,7 +279,7 @@ export default function MonitoringPage() {
       ) : (
         <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
           <div className="space-y-2">
-            {regions.map((region) => {
+            {filteredRegions.map((region) => {
               const active = selected?.id === region.id;
               return (
                 <button
@@ -197,9 +303,14 @@ export default function MonitoringPage() {
                         {formatArea(region.areaKm2)}
                       </p>
                     </div>
-                    <Badge tone={active ? "primary" : "neutral"} mono>
-                      {region.analysisCount}
-                    </Badge>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <Badge tone={region.monitoringStatus === "paused" ? "warning" : "success"} dot>
+                        {region.monitoringStatus === "paused" ? "Paused" : "Active"}
+                      </Badge>
+                      <Badge tone={active ? "primary" : "neutral"} mono>
+                        {region.analysisCount}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="mt-3 flex items-center justify-between gap-2">
                     {region.latestAnalysis ? (
@@ -221,21 +332,74 @@ export default function MonitoringPage() {
 
           {selected && (
             <div className="space-y-4">
+              {regionRing(selected) && (
+                <Panel className="overflow-hidden p-0">
+                  <MiniMap
+                    center={
+                      selected.center
+                        ? [selected.center[1], selected.center[0]]
+                        : [13.08, 80.27]
+                    }
+                    zoom={11}
+                    ring={regionRing(selected)}
+                    className="h-[190px] rounded-none border-0"
+                  />
+                </Panel>
+              )}
               <Panel>
                 <PanelHeader
                   title={`${selected.name} · change trend`}
                   description={`${trend.length} completed ${trend.length === 1 ? "run" : "runs"} with a stored change ratio.`}
                   action={
-                    selected.latestAnalysis && (
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <Button
-                        to={`/app/results/${selected.latestAnalysis.id}`}
-                        variant="secondary"
+                        variant="ghost"
                         size="sm"
-                        iconRight={<ArrowUpRight className="size-3.5" />}
+                        onClick={() =>
+                          updateRegion.mutate({
+                            id: selected.id,
+                            payload: {
+                              monitoringStatus:
+                                selected.monitoringStatus === "paused" ? "active" : "paused",
+                            },
+                          })
+                        }
+                        icon={
+                          selected.monitoringStatus === "paused" ? (
+                            <Play className="size-3.5" />
+                          ) : (
+                            <Pause className="size-3.5" />
+                          )
+                        }
                       >
-                        Latest result
+                        {selected.monitoringStatus === "paused" ? "Resume" : "Pause"}
                       </Button>
-                    )
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setEditingRegion(selected)}
+                        icon={<Pencil className="size-3.5" />}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setRemovingRegion(selected)}
+                        aria-label={`Remove ${selected.name}`}
+                        icon={<Trash2 className="size-3.5" />}
+                      />
+                      {selected.latestAnalysis && (
+                        <Button
+                          to={`/app/results/${selected.latestAnalysis.id}`}
+                          variant="secondary"
+                          size="sm"
+                          iconRight={<ArrowUpRight className="size-3.5" />}
+                        >
+                          Latest result
+                        </Button>
+                      )}
+                    </div>
                   }
                 />
                 <div className="mt-4 h-[220px]">
@@ -369,6 +533,32 @@ export default function MonitoringPage() {
           )}
         </div>
       )}
+
+      <RegionEditorModal
+        region={editingRegion}
+        open={Boolean(editingRegion)}
+        saving={updateRegion.isPending}
+        onClose={() => setEditingRegion(null)}
+        onSave={(payload) => {
+          if (!editingRegion) return;
+          updateRegion.mutate({ id: editingRegion.id, payload });
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(removingRegion)}
+        title="Remove this saved region?"
+        description={
+          removingRegion
+            ? `${removingRegion.name} will leave the watchlist. Stored analyses are kept but lose their region association.`
+            : undefined
+        }
+        confirmLabel="Remove region"
+        loading={removeRegion.isPending}
+        onClose={() => setRemovingRegion(null)}
+        onConfirm={() => {
+          if (removingRegion) removeRegion.mutate(removingRegion.id);
+        }}
+      />
     </div>
   );
 }

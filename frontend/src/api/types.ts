@@ -140,6 +140,8 @@ export interface AnalysisResults {
   engineNotice?: string | null;
 }
 
+export type RegionMonitoringStatus = "active" | "paused";
+
 export interface Region {
   id: string;
   name: string;
@@ -148,7 +150,10 @@ export interface Region {
   bbox: [number, number, number, number] | null;
   areaKm2: number | null;
   center: [number, number] | null;
+  monitoringStatus: RegionMonitoringStatus;
+  lastCheckedAt: string | null;
   createdAt: string | null;
+  updatedAt: string | null;
   analysisCount: number;
   latestAnalysis: {
     id: string;

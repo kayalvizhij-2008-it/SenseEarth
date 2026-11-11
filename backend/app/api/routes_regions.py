@@ -17,9 +17,10 @@ from backend.app.database.store import (
     list_regions,
     new_id,
     now_iso,
+    update_region,
 )
 from backend.app.ml.metrics import bbox_area_km2
-from backend.app.schemas.schemas import RegionCreate
+from backend.app.schemas.schemas import RegionCreate, RegionUpdate
 from backend.app.services.serializers import region_to_dict
 
 router = APIRouter(prefix="/regions", tags=["regions"])
@@ -72,10 +73,60 @@ def create_region_endpoint(
             "area_km2": area,
             "center_lon": center[0] if center else None,
             "center_lat": center[1] if center else None,
+            "monitoring_status": "active",
             "created_at": now_iso(),
+            "updated_at": now_iso(),
         },
     )
     return region_to_dict(region)
+
+
+@router.patch("/{region_id}")
+def update_region_endpoint(
+    region_id: str,
+    payload: RegionUpdate,
+    connection: sqlite3.Connection = Depends(db_session),
+    user: dict = Depends(current_user),
+) -> dict:
+    region = get_region(connection, region_id)
+    if region is None or region["owner_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="Region not found.")
+
+    fields: dict = {}
+    if payload.name is not None:
+        fields["name"] = payload.name.strip()[:160]
+    if payload.description is not None:
+        fields["description"] = payload.description.strip() or None
+    if payload.monitoringStatus is not None:
+        fields["monitoring_status"] = payload.monitoringStatus
+
+    geometry = payload.geometry
+    if geometry is not None:
+        if geometry.get("type") not in _ALLOWED_GEOMETRIES:
+            raise HTTPException(
+                status_code=422, detail="Only Polygon or MultiPolygon geometries can be saved."
+            )
+        fields["geometry"] = json.dumps(geometry)
+
+    bbox = payload.bbox or (_bbox_from_geometry(geometry) if geometry else None)
+    if bbox:
+        _validate_bbox(bbox)
+        fields["bbox"] = json.dumps(bbox)
+    if payload.areaKm2 is not None:
+        fields["area_km2"] = payload.areaKm2
+    elif bbox:
+        fields["area_km2"] = bbox_area_km2(bbox)
+    center = payload.center
+    if center is None and bbox:
+        center = [(bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0]
+    if center:
+        fields["center_lon"] = center[0]
+        fields["center_lat"] = center[1]
+
+    updated = update_region(connection, region_id, **fields)
+    rows = analyses_for_region(connection, user["id"], region_id, limit=1)
+    count = count_region_analyses(connection, user["id"], region_id)
+    return region_to_dict(updated, analysis_count=count, latest=rows[0] if rows else None)
 
 
 @router.delete("/{region_id}", status_code=status.HTTP_204_NO_CONTENT)
