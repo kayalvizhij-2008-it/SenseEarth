@@ -18,7 +18,7 @@ from typing import Any
 
 from backend.app.core.config import settings
 
-_PBKDF2_ITERATIONS = 120_000
+_PBKDF2_ITERATIONS = 240_000
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$")
 
 

@@ -23,7 +23,6 @@ from backend.app.api import (  # noqa: E402
     routes_analyses,
     routes_analytics,
     routes_auth,
-    routes_google_auth,
     routes_regions,
     routes_system,
 )
@@ -59,7 +58,7 @@ app.add_middleware(
 
 app.include_router(routes_system.router, prefix="/api")
 app.include_router(routes_auth.router, prefix="/api")
-app.include_router(routes_google_auth.router, prefix="/api")
+# Google OAuth is intentionally not mounted: SenseEarth uses email/password only.
 app.include_router(routes_analyses.router, prefix="/api")
 app.include_router(routes_analytics.router, prefix="/api")
 app.include_router(routes_regions.router, prefix="/api")

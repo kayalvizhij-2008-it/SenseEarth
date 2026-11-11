@@ -113,23 +113,35 @@ class Settings:
             directory.mkdir(parents=True, exist_ok=True)
 
     def session_secret(self) -> bytes:
-        """Read (or create once) the HMAC key used to sign session tokens."""
+        """Read (or create once) the HMAC key used to sign session tokens.
+
+        The key is cached in memory so token signing and verification do not
+        touch the filesystem on every request.
+        """
+        global _SESSION_SECRET_CACHE
+        if _SESSION_SECRET_CACHE is not None:
+            return _SESSION_SECRET_CACHE
         env_secret = os.environ.get("SENSEEARTH_SECRET_KEY")
         if env_secret:
-            return env_secret.encode("utf-8")
+            _SESSION_SECRET_CACHE = env_secret.encode("utf-8")
+            return _SESSION_SECRET_CACHE
         self.ensure_directories()
         if self.SECRET_FILE.exists():
             value = self.SECRET_FILE.read_text(encoding="utf-8").strip()
             if value:
-                return value.encode("utf-8")
+                _SESSION_SECRET_CACHE = value.encode("utf-8")
+                return _SESSION_SECRET_CACHE
         value = secrets.token_urlsafe(48)
         self.SECRET_FILE.write_text(value, encoding="utf-8")
         try:  # best effort on POSIX; Windows ignores chmod semantics
             os.chmod(self.SECRET_FILE, 0o600)
         except OSError:
             pass
-        return value.encode("utf-8")
+        _SESSION_SECRET_CACHE = value.encode("utf-8")
+        return _SESSION_SECRET_CACHE
 
+
+_SESSION_SECRET_CACHE: bytes | None = None
 
 settings = Settings()
 settings.ensure_directories()
